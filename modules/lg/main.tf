@@ -28,6 +28,6 @@ resource "aws_key_pair" "my_aws_key" {
 resource "aws_launch_configuration" "as_conf" {
   name          = "chris-tf-lc"
   image_id      = data.aws_ami.ubuntu.id
-  instance_type = "t2.micro"
+  instance_type = var.instance_id
   key_name      = aws_key_pair.my_aws_key.key_name
 }

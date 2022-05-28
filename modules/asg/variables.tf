@@ -1,3 +1,3 @@
-variable "AWS_KEY_PAIR" {
-    default = "../other-files"
+variable "asg_name_id" {
+    default = "chris-tf-asg"
 }

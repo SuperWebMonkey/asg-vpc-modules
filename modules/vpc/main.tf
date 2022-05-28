@@ -4,83 +4,49 @@
     Create a nat gateway
 */
 
+# local value for timestamp
+locals {
+  timestamp = formatdate("DD MMM YYYY hh:mm ZZZ",timestamp())
+}
+
 # vpc
 resource "aws_vpc" "vpc" {
-    cidr_block = "10.0.0.0/16"
+    cidr_block = var.cidr_block
     instance_tenancy = "default"
     enable_dns_hostnames = true
     enable_dns_support = true
 
     tags = {
         Name = "chrise-tf-vpc"
+        timestamp = local.timestamp
     }
 }
 
+# using count to make public subnets, use a for loop
 # public subnets
-resource "aws_subnet" "subnet-1" {
+resource "aws_subnet" "public-subnet" {
+    count = 3
     vpc_id = aws_vpc.vpc.id
-    cidr_block = "10.0.1.0/24"
+    cidr_block = cidrsubnet(var.cidr_block, 4, count.index)
     map_public_ip_on_launch = true
-    availability_zone = "us-east-1a"
+    # availability_zone = "us-west-1a"
 
     tags = {
-        Name = "public--tf-subnet-1"
+        Name = "chris-public-tf-subnet-${count.index + 1}"
+        timestamp = local.timestamp
     }
 }
 
-resource "aws_subnet" "subnet-2" {
+# private subnets
+resource "aws_subnet" "private-subnet" {
+    count = 3
     vpc_id = aws_vpc.vpc.id
-    cidr_block = "10.0.2.0/24"
-    map_public_ip_on_launch = true
-    availability_zone = "us-east-1b"
-
-    tags = {
-        Name = "public-tf-subnet-2"
-    }
-}
-
-resource "aws_subnet" "subnet-3" {
-    vpc_id = aws_vpc.vpc.id
-    cidr_block = "10.0.4.0/24"
-    map_public_ip_on_launch = true
-    availability_zone = "us-east-1c"
-
-    tags = {
-        Name = "public-tf-subnet-3"
-    }
-}
-
-#private subnets
-resource "aws_subnet" "subnet-4" {
-    vpc_id = aws_vpc.vpc.id
-    cidr_block = "10.0.8.0/24"
+    cidr_block = cidrsubnet(var.cidr_block, 4, count.index + 3)
     map_public_ip_on_launch = false
-    availability_zone = "us-east-1a"
-
+    
     tags = {
-        Name = "chris-tf-private-subnet"
-    }
-}
-
-resource "aws_subnet" "subnet-5" {
-    vpc_id = aws_vpc.vpc.id
-    cidr_block = "10.0.16.0/24"
-    map_public_ip_on_launch = false
-    availability_zone = "us-east-1b"
-
-    tags = {
-        Name = "chris-tf-private-subnet-2"
-    }
-}
-
-resource "aws_subnet" "subnet-6" {
-    vpc_id = aws_vpc.vpc.id
-    cidr_block = "10.0.32.0/24"
-    map_public_ip_on_launch = false
-    availability_zone = "us-east-1c"
-
-    tags = {
-        Name = "chris-tf-private-subnet-3"
+        Name = "chris-tf-private-subnet-${count.index + 1}"
+        timestamp = local.timestamp
     }
 }
 
@@ -90,6 +56,7 @@ resource "aws_internet_gateway" "igw" {
   tags = {
     Name  = "chris-tf-igw"
     Enviornment = "chris-environment"
+    timestamp = local.timestamp
   }
 }
 
@@ -101,11 +68,12 @@ resource "aws_eip" "nat_eip" {
 # Nat Gateway
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat_eip.id
-  subnet_id = aws_subnet.subnet-1.id
+  subnet_id = aws_subnet.public-subnet[0].id
   depends_on = [aws_internet_gateway.igw]
 
   tags = {
     Name = "chris-tf-nat-gw"
+    timestamp = local.timestamp
   }
 }
 
@@ -114,12 +82,13 @@ resource "aws_route_table" "pub-rt" {
     vpc_id = aws_vpc.vpc.id
 
     route {
-        cidr_block = "0.0.0.0/0" # all IPs
+        cidr_block = "${var.cidr_all}" # all IPs
         gateway_id = aws_internet_gateway.igw.id
     }
 
     tags = {
         Name = "chris-tf-public-table"
+        timestamp = local.timestamp
     }
 }
 
@@ -127,44 +96,27 @@ resource "aws_route_table" "pub-rt" {
 resource "aws_route_table" "priv-rt" {
     vpc_id = aws_vpc.vpc.id
     route {
-        cidr_block = "0.0.0.0/0"
+        cidr_block = "${var.cidr_all}"
         nat_gateway_id = aws_nat_gateway.nat.id
     }
 
     tags = {
         Name = "chris-tf-private-table"
+        timestamp = local.timestamp
     }
 }
 
 # Public route table association
-resource "aws_route_table_association" "pub-a" {
-  subnet_id      = aws_subnet.subnet-1.id
-  route_table_id = aws_route_table.pub-rt.id
-}
-
-resource "aws_route_table_association" "pub-b" {
-  subnet_id      = aws_subnet.subnet-2.id
-  route_table_id = aws_route_table.pub-rt.id
-}
-
-resource "aws_route_table_association" "pub-c" {
-  subnet_id      = aws_subnet.subnet-3.id
+resource "aws_route_table_association" "pub-assoc" {
+  count = 3
+  subnet_id      = aws_subnet.public-subnet[count.index].id
   route_table_id = aws_route_table.pub-rt.id
 }
 
 # Private route table association 
-resource "aws_route_table_association" "priv-a" {
-  subnet_id      = aws_subnet.subnet-4.id
-  route_table_id = aws_route_table.priv-rt.id
-}
-
-resource "aws_route_table_association" "priv-b" {
-  subnet_id      = aws_subnet.subnet-5.id
-  route_table_id = aws_route_table.priv-rt.id
-}
-
-resource "aws_route_table_association" "priv-c" {
-  subnet_id      = aws_subnet.subnet-6.id
+resource "aws_route_table_association" "priv-assoc" {
+  count = 3
+  subnet_id      = aws_subnet.private-subnet[count.index].id
   route_table_id = aws_route_table.priv-rt.id
 }
 
@@ -178,27 +130,27 @@ resource "aws_security_group" "sg_22" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["${var.cidr_all}"]
   }
 
   ingress {
       from_port   = 80
       to_port     = 80
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["${var.cidr_all}"]
   }
 
   ingress {
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["${var.cidr_all}"]
   }
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["${var.cidr_all}"]
   }
 }

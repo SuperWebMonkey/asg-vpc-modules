@@ -1,3 +1,9 @@
-variable "AWS_KEY_PAIR" {
-    default = "../other-files"
+variable "name_id" {
+    default = "chris-tf"
 }
+
+variable "instance_id" {
+    default = "t2.micro"
+}
+
+

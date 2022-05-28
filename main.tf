@@ -1,3 +1,8 @@
+provider "aws" {
+     region = "us-west-1"
+     profile = "chrise"
+}
+
 terraform {
     required_providers {
         aws = {
@@ -12,13 +17,9 @@ terraform {
     }
 }
 
-module "vpc" {
-    source  = "./modules/vpc"
-}
-
-module "lg" {
+/*module "lg" {
     source = "./modules/lg"
-}
+}*/
 
 module "asg" {
     source = "./modules/asg"
